@@ -1,0 +1,83 @@
+---
+title: 'Part 2: chi-squared with Lizards'' tails'
+author: "Alex Setmajer"
+date: "11/28/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(janitor)
+library(broom)
+```
+
+## Read in data
+```{r}
+lizards <- read_csv(here("data", "lizards.csv"))
+```
+
+Get counts of lizards by species:
+```{r}
+lizards %>% 
+  count(spp) %>% 
+  arrange(-n)
+```
+
+## Make a subset
+
+- UTST Lizards
+- Sites: IBPE (enclosure grassland site), RABB (rabbit mesquite site), EAST (east tarbush site)
+- Tail condition is recorded (W= whole, B= broken)
+
+```{r}
+utst <- lizards %>% 
+  filter (spp == "UTST") %>% 
+  filter (site %in% c("IBPE", "RABB", "EAST")) %>% 
+  filter (tail %in% c("B", "W"))
+```
+
+## Find counts and proportions of lizards with broken or whole tails at each site
+
+```{r}
+utst %>% 
+  count(site, tail)
+```
+
+Create a nice contigency table:
+```{r}
+tail_counts <- utst %>% 
+  janitor::tabyl(site, tail) #creates table better for chi squared and communication, vs longform list above which is better for most data analysis/coding.
+
+tail_proportions <- tail_counts %>% 
+  janitor::adorn_percentages() %>% 
+  janitor::adorn_pct_formatting(digits= 2) %>% 
+  janitor::adorn_ns()
+```
+
+## Convert to a contigency table
+
+Use `column_to_rowname()`.
+
+```{r}
+lizard_ct <- tail_counts %>% 
+  column_to_rownames(var = "site") # site column no longer stored as data, now it is the row name.
+
+```
+
+## Chi-square
+
+Are tail breakage and site independent?
+
+```{r}
+lizard_x2 <- chisq.test(lizard_ct)
+lizard_x2
+
+lizard_tidy <- broom::tidy(lizard_x2)
+```
+
+df = degrees of freedom is rows -1 * columns -1. p-value is probability in this test. below 0.05 so yes, have enough evidence to reject null hypothesis. AKA there is a significant association between site and tail breakage (lizard and tail breakage are NOT independent)
+
+There is a significant association (i.e. non-independence) between site and lizard tail breakage ($\chi$^2^(`r lizard_tidy$parameter`) = `r lizard_tidy$statistic`, *p* = `r  lizard_tidy$p.value`).
